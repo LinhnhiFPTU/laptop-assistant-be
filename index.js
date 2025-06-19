@@ -30,11 +30,6 @@ const swaggerOptions = {
       version: "1.0.0",
       description: "API mô tả các chức năng liên quan đến danh sách laptop",
     },
-    servers: [
-      {
-        url: "http://localhost:3001",
-      },
-    ],
   },
   apis: ["./index.js"], // Swagger sẽ quét chính file này
 };
