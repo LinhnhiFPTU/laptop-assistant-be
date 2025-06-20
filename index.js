@@ -30,11 +30,6 @@ const swaggerOptions = {
       version: "1.0.0",
       description: "API mô tả các chức năng liên quan đến danh sách laptop",
     },
-    servers: [
-      {
-        url: "http://localhost:3001",
-      },
-    ],
   },
   apis: ["./index.js"], // Swagger sẽ quét chính file này
 };
@@ -541,6 +536,6 @@ app.get("/api/promotions/available", async (req, res) => {
 
 // Khởi động server
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () =>
+app.listen(PORT, "0.0.0.0", () =>
   console.log(`🚀 Backend chạy tại http://localhost:${PORT}`)
 );
