@@ -8,6 +8,7 @@ const pLimit = require("p-limit").default;
 const OrderAgent = require("./orderAgent");
 const PromotionAgent = require("./promotionAgent");
 const VectorAgent = require("./vectorAgent");
+const ProductInfoAgent = require("./productInfoAgent");
 
 const LLM_MODEL = process.env.BEDROCK_LLM_MODEL;
 const bedrock = new BedrockRuntimeClient({ region: process.env.AWS_REGION });
@@ -77,16 +78,19 @@ class SupervisorAgent {
     Các agent có sẵn:
     1. OrderAgent - CHỈ dùng khi cần truy vấn thông tin về đơn hàng CỤ THỂ của người dùng, như trạng thái đơn hàng, lịch sử đơn hàng. KHÔNG dùng cho các câu hỏi chung về chính sách, quy trình đặt hàng, hoặc trả hàng.
     2. PromotionAgent - Truy vấn thông tin về khuyến mãi, mã giảm giá
-    3. VectorAgent - Tìm kiếm thông tin chung từ cơ sở dữ liệu vector, bao gồm các chính sách, quy trình, hướng dẫn, thông tin sản phẩm, và các câu hỏi chung.
+    3. ProductInfoAgent - Tìm kiếm thông tin chi tiết về sản phẩm cụ thể (laptop) khi người dùng hỏi về một sản phẩm cụ thể hoặc muốn tham khảo thông tin sản phẩm.
+    4. VectorAgent - Tìm kiếm thông tin chung từ cơ sở dữ liệu vector, bao gồm các chính sách, quy trình, hướng dẫn, và các câu hỏi chung.
     
     Lưu ý quan trọng:
     - Câu hỏi về "chính sách trả hàng", "chính sách bảo hành", "hướng dẫn mua hàng" là câu hỏi chung, chỉ cần dùng VectorAgent.
     - Chỉ dùng OrderAgent khi người dùng hỏi về đơn hàng cụ thể của họ, ví dụ: "đơn hàng của tôi đã giao chưa?", "tôi đã đặt những sản phẩm nào?"
+    - Dùng ProductInfoAgent khi người dùng hỏi về thông tin sản phẩm cụ thể, ví dụ: "cho tôi biết thông tin về laptop Dell XPS", "tôi muốn tham khảo sản phẩm Lenovo ThinkPad"
     
     Trả về JSON với cấu trúc:
     {
       "needsOrderInfo": boolean,
       "needsPromotionInfo": boolean,
+      "needsProductInfo": boolean,
       "needsVectorSearch": boolean,
       "reasoning": "Giải thích ngắn gọn lý do"
     }`;
@@ -133,6 +137,7 @@ class SupervisorAgent {
       return {
         needsOrderInfo: true,
         needsPromotionInfo: true,
+        needsProductInfo: true,
         needsVectorSearch: true,
         reasoning: "Using all agents as fallback"
       };
@@ -142,6 +147,7 @@ class SupervisorAgent {
       return {
         needsOrderInfo: true,
         needsPromotionInfo: true,
+        needsProductInfo: true,
         needsVectorSearch: true,
         reasoning: "Error occurred, using all agents as fallback"
       };
@@ -274,6 +280,22 @@ class SupervisorAgent {
               agentResults.push({ 
                 agentName: "PromotionAgent", 
                 data: "Không thể truy vấn thông tin khuyến mãi.",
+                error: true 
+              });
+            })
+        );
+      }
+      
+      // Use ProductInfoAgent for product-specific queries
+      if (analysis.needsProductInfo) {
+        promises.push(
+          ProductInfoAgent.getProductContext(question)
+            .then(data => agentResults.push({ agentName: "ProductInfoAgent", data }))
+            .catch(error => {
+              console.error("Product info query failed:", error);
+              agentResults.push({ 
+                agentName: "ProductInfoAgent", 
+                data: "Không thể truy vấn thông tin sản phẩm.",
                 error: true 
               });
             })
