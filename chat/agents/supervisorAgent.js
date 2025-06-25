@@ -168,7 +168,7 @@ class SupervisorAgent {
   }
 
   static async aggregateResponses(question, agentResults) {
-    // Check if we have a product display result
+    // Check if we have a product display result with cart option
     const productResult = agentResults.find(
       (r) =>
         r.agentName === "ProductInfoAgent" &&
@@ -263,6 +263,18 @@ class SupervisorAgent {
 
   static async processQuery(question, token) {
     try {
+      // Extract userId from token if available
+      let userId = null;
+      if (token) {
+        try {
+          const jwt = require("jsonwebtoken");
+          const decoded = jwt.verify(token, process.env.JWT_SECRET);
+          userId = decoded.userId;
+        } catch (err) {
+          console.error("Error decoding token in SupervisorAgent:", err);
+        }
+      }
+      
       // Analyze the query to determine which agents to use
       const analysis = await this.analyzeQuery(question);
       console.log("Query analysis:", analysis);
@@ -337,7 +349,7 @@ class SupervisorAgent {
       // Use ProductInfoAgent for product-specific queries
       if (analysis.needsProductInfo) {
         promises.push(
-          ProductInfoAgent.getProductContext(question)
+          ProductInfoAgent.getProductContext(question, userId)
             .then((data) =>
               agentResults.push({ agentName: "ProductInfoAgent", data })
             )

@@ -114,7 +114,7 @@ app.get("/api/laptops", async (req, res) => {
 
   params.push(limit, offset);
   const sql = `
-    SELECT * FROM laptops
+    select * from products p join laptop_specs l on p.id = l.product_id
     ${where.length ? "WHERE " + where.join(" AND ") : ""}
     ORDER BY id DESC
     LIMIT $${params.length - 1} OFFSET $${params.length};
@@ -149,9 +149,10 @@ app.get("/api/laptops", async (req, res) => {
  */
 app.get("/api/laptops/:id", async (req, res) => {
   try {
-    const { rows } = await pool.query("SELECT * FROM laptops WHERE id = $1", [
-      req.params.id,
-    ]);
+    const { rows } = await pool.query(
+      "select * from products p join laptop_specs l on p.id = l.product_id WHERE id = $1",
+      [req.params.id]
+    );
     if (!rows.length) return res.status(404).json({ error: "Not found" });
     res.json(rows[0]);
   } catch (err) {

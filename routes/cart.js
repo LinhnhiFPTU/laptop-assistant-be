@@ -41,7 +41,7 @@ router.get("/:customerId", async (req, res) => {
               l.price,
               l.image
        FROM cart_items c
-       JOIN laptops l ON l.id = c.product_id
+       JOIN products l ON l.id = c.product_id
        WHERE c.customer_id = $1`,
       [customerId]
     );
@@ -63,9 +63,9 @@ router.post("/:customerId/checkout", async (req, res) => {
     // 1. Lấy giỏ hàng
     const { rows: cart } = await client.query(
       `SELECT c.product_id, c.quantity,
-              l.price, l.brand, l.processor_brand, l.name
+              l.price, l.brand, l.name
        FROM cart_items c
-       JOIN laptops l ON l.id = c.product_id
+       JOIN products l ON l.id = c.product_id
        WHERE c.customer_id = $1`,
       [customerId]
     );
