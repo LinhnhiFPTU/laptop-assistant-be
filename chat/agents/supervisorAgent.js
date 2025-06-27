@@ -280,7 +280,7 @@ class SupervisorAgent {
           console.error("Error decoding token in SupervisorAgent:", err);
         }
       }
-      
+
       // Analyze the query to determine which agents to use
       const analysis = await this.analyzeQuery(question);
       console.log("Query analysis:", analysis);
@@ -369,7 +369,7 @@ class SupervisorAgent {
             })
         );
       }
-      
+
       // Use Neo4jAgent for complex product queries
       if (analysis.needsNeo4jQuery) {
         promises.push(

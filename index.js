@@ -171,14 +171,59 @@ app.get("/api/products", async (req, res) => {
  *       404:
  *         description: Không tìm thấy laptop
  */
+// app.get("/api/laptops/:id", async (req, res) => {
+//   try {
+//     // First, get the product and its type
+//     const { rows: productRows } = await pool.query(
+//       `SELECT p.*, pt.name AS product_type
+//        FROM products p
+//        JOIN product_types pt ON p.product_type_id = pt.id
+//        WHERE p.id = $1`,
+//       [req.params.id]
+//     );
+//     if (!productRows.length)
+//       return res.status(404).json({ error: "Not found" });
+
+//     const product = productRows[0];
+
+//     if (product.product_type.toLowerCase() === "laptop") {
+//       // If it's a laptop, join with laptop_specs
+//       const { rows: laptopRows } = await pool.query(
+//         `SELECT p.*, pt.name AS product_type, l.*
+//          FROM products p
+//          JOIN product_types pt ON p.product_type_id = pt.id
+//          JOIN laptop_specs l ON p.id = l.product_id
+//          WHERE p.id = $1`,
+//         [req.params.id]
+//       );
+//       if (!laptopRows.length)
+//         return res.status(404).json({ error: "Not found" });
+//       return res.json(laptopRows[0]);
+//     } else {
+//       // If not a laptop, just return product info
+//       return res.json(product);
+//     }
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ error: "DB query failed" });
+//   }
+// });
 app.get("/api/laptops/:id", async (req, res) => {
   try {
-    // First, get the product and its type
+    // Lấy thông tin sản phẩm, loại, và categories
     const { rows: productRows } = await pool.query(
-      `SELECT p.*, pt.name AS product_type
-       FROM products p
-       JOIN product_types pt ON p.product_type_id = pt.id
-       WHERE p.id = $1`,
+      `
+      SELECT 
+        p.*, 
+        pt.name AS product_type, 
+        ARRAY_AGG(c.name) FILTER (WHERE c.name IS NOT NULL) AS categories
+      FROM products p
+      JOIN product_types pt ON p.product_type_id = pt.id
+      LEFT JOIN product_categories pc ON p.id = pc.product_id
+      LEFT JOIN categories c ON pc.category_id = c.id
+      WHERE p.id = $1
+      GROUP BY p.id, pt.name
+      `,
       [req.params.id]
     );
     if (!productRows.length)
@@ -187,20 +232,20 @@ app.get("/api/laptops/:id", async (req, res) => {
     const product = productRows[0];
 
     if (product.product_type.toLowerCase() === "laptop") {
-      // If it's a laptop, join with laptop_specs
-      const { rows: laptopRows } = await pool.query(
-        `SELECT p.*, pt.name AS product_type, l.*
-         FROM products p
-         JOIN product_types pt ON p.product_type_id = pt.id
-         JOIN laptop_specs l ON p.id = l.product_id
-         WHERE p.id = $1`,
+      // Nếu là laptop, lấy thêm specs
+      const { rows: specsRows } = await pool.query(
+        `SELECT * FROM laptop_specs WHERE product_id = $1`,
         [req.params.id]
       );
-      if (!laptopRows.length)
-        return res.status(404).json({ error: "Not found" });
-      return res.json(laptopRows[0]);
+      // Gộp specs vào product (nếu có)
+      if (specsRows.length) {
+        return res.json({ ...product, ...specsRows[0] });
+      } else {
+        // Không có specs, chỉ trả về product
+        return res.json(product);
+      }
     } else {
-      // If not a laptop, just return product info
+      // Không phải laptop, chỉ trả về product (không có specs)
       return res.json(product);
     }
   } catch (err) {

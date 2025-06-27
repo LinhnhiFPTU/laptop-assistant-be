@@ -118,6 +118,8 @@ Now generate Cypher for this question: "${question}"
   • HDD: ${obj.hdd || "Không có"}
   • Màn hình: ${display || "Không rõ"} inch
   • Giá: ${new Intl.NumberFormat("vi-VN").format(price)} VND
+  • Loại sản phẩm: ${obj.product_type || "Không rõ"}
+  • Danh mục: ${obj.categories?.join(", ") || "Không có"}
   • ID: ${obj.id}
       `.trim();
     });
