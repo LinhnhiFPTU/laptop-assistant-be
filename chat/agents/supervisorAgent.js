@@ -10,6 +10,7 @@ const PromotionAgent = require("./promotionAgent");
 const VectorAgent = require("./vectorAgent");
 const ProductInfoAgent = require("./productInfoAgent");
 const InternetSearchAgent = require("./internetSearchAgent");
+const Neo4jAgent = require("./neo4jAgent");
 
 const LLM_MODEL = process.env.BEDROCK_LLM_MODEL;
 const bedrock = new BedrockRuntimeClient({ region: process.env.AWS_REGION });
@@ -89,11 +90,13 @@ class SupervisorAgent {
     3. ProductInfoAgent - Tìm kiếm thông tin chi tiết về sản phẩm cụ thể (laptop) khi người dùng hỏi về một sản phẩm cụ thể hoặc muốn tham khảo thông tin sản phẩm.
     4. InternetSearchAgent - Tìm kiếm thông tin trên internet cho các câu hỏi kiến thức chung, định nghĩa, so sánh, giải thích các khái niệm công nghệ không liên quan trực tiếp đến cửa hàng.
     5. VectorAgent - Tìm kiếm thông tin chung từ cơ sở dữ liệu vector, bao gồm các chính sách, quy trình, hướng dẫn, và các câu hỏi chung liên quan đến cửa hàng.
+    6. Neo4jAgent - Tìm kiếm thông tin sản phẩm phức tạp bằng cách tạo và thực thi truy vấn Cypher trên cơ sở dữ liệu Neo4j. Sử dụng cho các câu hỏi so sánh sản phẩm, lọc theo nhiều tiêu chí, hoặc tìm kiếm sản phẩm theo mối quan hệ.
     
     Lưu ý quan trọng:
     - Câu hỏi về "chính sách trả hàng", "chính sách bảo hành", "hướng dẫn mua hàng" là câu hỏi chung, chỉ cần dùng VectorAgent.
     - Chỉ dùng OrderAgent khi người dùng hỏi về đơn hàng cụ thể của họ, ví dụ: "đơn hàng của tôi đã giao chưa?", "tôi đã đặt những sản phẩm nào?"
-    - Dùng ProductInfoAgent khi người dùng hỏi về thông tin sản phẩm cụ thể, ví dụ: "cho tôi biết thông tin về laptop Dell XPS", "tôi muốn tham khảo sản phẩm Lenovo ThinkPad"
+    - Dùng ProductInfoAgent khi người dùng hỏi về thông tin sản phẩm cụ thể đơn giản, ví dụ: "cho tôi biết thông tin về laptop Dell XPS", "tôi muốn tham khảo sản phẩm Lenovo ThinkPad"
+    - Dùng Neo4jAgent khi người dùng hỏi về thông tin sản phẩm phức tạp hoặc so sánh, ví dụ: "laptop nào có RAM trên 16GB và giá dưới 30 triệu?", "so sánh các laptop Dell và Lenovo", "laptop nào có SSD lớn nhất?"
     - Dùng InternetSearchAgent khi người dùng hỏi về kiến thức chung, định nghĩa, so sánh, ví dụ: "SSD là gì?", "so sánh Intel và AMD", "RAM DDR4 và DDR5 khác nhau thế nào?"
     
     Trả về JSON với cấu trúc:
@@ -101,6 +104,7 @@ class SupervisorAgent {
       "needsOrderInfo": boolean,
       "needsPromotionInfo": boolean,
       "needsProductInfo": boolean,
+      "needsNeo4jQuery": boolean,
       "needsInternetSearch": boolean,
       "needsVectorSearch": boolean,
       "reasoning": "Giải thích ngắn gọn lý do"
@@ -149,6 +153,7 @@ class SupervisorAgent {
         needsOrderInfo: true,
         needsPromotionInfo: true,
         needsProductInfo: true,
+        needsNeo4jQuery: true,
         needsInternetSearch: true,
         needsVectorSearch: true,
         reasoning: "Using all agents as fallback",
@@ -160,6 +165,7 @@ class SupervisorAgent {
         needsOrderInfo: true,
         needsPromotionInfo: true,
         needsProductInfo: true,
+        needsNeo4jQuery: true,
         needsInternetSearch: true,
         needsVectorSearch: true,
         reasoning: "Error occurred, using all agents as fallback",
@@ -358,6 +364,24 @@ class SupervisorAgent {
               agentResults.push({
                 agentName: "ProductInfoAgent",
                 data: "Không thể truy vấn thông tin sản phẩm.",
+                error: true,
+              });
+            })
+        );
+      }
+      
+      // Use Neo4jAgent for complex product queries
+      if (analysis.needsNeo4jQuery) {
+        promises.push(
+          Neo4jAgent.getProductContext(question)
+            .then((data) =>
+              agentResults.push({ agentName: "Neo4jAgent", data })
+            )
+            .catch((error) => {
+              console.error("Neo4j query failed:", error);
+              agentResults.push({
+                agentName: "Neo4jAgent",
+                data: "Không thể truy vấn cơ sở dữ liệu Neo4j.",
                 error: true,
               });
             })

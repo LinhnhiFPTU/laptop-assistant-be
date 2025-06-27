@@ -66,9 +66,9 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 /**
  * @swagger
- * /api/laptops:
+ * /api/products:
  *   get:
- *     summary: Lấy danh sách laptop
+ *     summary: Lấy danh sách sản phẩm
  *     parameters:
  *       - in: query
  *         name: page
@@ -86,16 +86,26 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
  *           type: string
  *         description: Lọc theo hãng
  *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *         description: Lọc theo loại sản phẩm (laptop, mouse, keyboard, RAM, backpack)
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *         description: Lọc theo danh mục sản phẩm
+ *       - in: query
  *         name: q
  *         schema:
  *           type: string
- *         description: Tìm kiếm theo tên hoặc CPU
+ *         description: Tìm kiếm theo tên hoặc mô tả
  *     responses:
  *       200:
- *         description: Thành công, trả về danh sách laptop
+ *         description: Thành công, trả về danh sách sản phẩm
  */
-app.get("/api/laptops", async (req, res) => {
-  const { page = 1, limit = 20, brand, q } = req.query;
+app.get("/api/products", async (req, res) => {
+  const { page = 1, limit = 20, brand, q, type, category } = req.query;
   const offset = (page - 1) * limit;
 
   const where = [];
@@ -103,20 +113,34 @@ app.get("/api/laptops", async (req, res) => {
 
   if (brand) {
     params.push(brand);
-    where.push(`brand ILIKE $${params.length}`);
+    where.push(`p.brand ILIKE $${params.length}`);
+  }
+  if (type) {
+    params.push(type);
+    where.push(`pt.name ILIKE $${params.length}`);
+  }
+  if (category) {
+    params.push(category);
+    where.push(`c.name ILIKE $${params.length}`);
   }
   if (q) {
     params.push(`%${q}%`);
     where.push(
-      `(name ILIKE $${params.length} OR processor_name ILIKE $${params.length})`
+      `(p.name ILIKE $${params.length} OR p.description ILIKE $${params.length})`
     );
   }
 
   params.push(limit, offset);
   const sql = `
-    select * from products p join laptop_specs l on p.id = l.product_id
+    SELECT p.*, pt.name AS product_type, 
+           ARRAY_AGG(c.name) AS categories
+    FROM products p
+    JOIN product_types pt ON p.product_type_id = pt.id
+    LEFT JOIN product_categories pc ON p.id = pc.product_id
+    LEFT JOIN categories c ON pc.category_id = c.id
     ${where.length ? "WHERE " + where.join(" AND ") : ""}
-    ORDER BY id DESC
+    GROUP BY p.id, pt.name
+    ORDER BY p.id DESC
     LIMIT $${params.length - 1} OFFSET $${params.length};
   `;
 
@@ -149,13 +173,38 @@ app.get("/api/laptops", async (req, res) => {
  */
 app.get("/api/laptops/:id", async (req, res) => {
   try {
-    const { rows } = await pool.query(
-      "select * from products p join laptop_specs l on p.id = l.product_id WHERE id = $1",
+    // First, get the product and its type
+    const { rows: productRows } = await pool.query(
+      `SELECT p.*, pt.name AS product_type
+       FROM products p
+       JOIN product_types pt ON p.product_type_id = pt.id
+       WHERE p.id = $1`,
       [req.params.id]
     );
-    if (!rows.length) return res.status(404).json({ error: "Not found" });
-    res.json(rows[0]);
+    if (!productRows.length)
+      return res.status(404).json({ error: "Not found" });
+
+    const product = productRows[0];
+
+    if (product.product_type.toLowerCase() === "laptop") {
+      // If it's a laptop, join with laptop_specs
+      const { rows: laptopRows } = await pool.query(
+        `SELECT p.*, pt.name AS product_type, l.*
+         FROM products p
+         JOIN product_types pt ON p.product_type_id = pt.id
+         JOIN laptop_specs l ON p.id = l.product_id
+         WHERE p.id = $1`,
+        [req.params.id]
+      );
+      if (!laptopRows.length)
+        return res.status(404).json({ error: "Not found" });
+      return res.json(laptopRows[0]);
+    } else {
+      // If not a laptop, just return product info
+      return res.json(product);
+    }
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "DB query failed" });
   }
 });

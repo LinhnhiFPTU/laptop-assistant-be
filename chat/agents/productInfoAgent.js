@@ -68,7 +68,7 @@ class ProductInfoAgent {
     try {
       // Use the internal API endpoint
       const response = await axios.get(
-        `http://localhost:${process.env.PORT || 3001}/api/laptops`,
+        `http://localhost:${process.env.PORT || 3001}/api/products`,
         {
           params: { q: query, limit: 3 },
         }
@@ -117,14 +117,15 @@ class ProductInfoAgent {
     if (!products || products.length === 0) {
       return {
         text: "Không tìm thấy thông tin về sản phẩm này.",
-        isProductDisplay: false
+        isProductDisplay: false,
       };
     }
 
     // Format the first product with add to cart option
     const product = products[0];
-    const formattedPrice = new Intl.NumberFormat("vi-VN").format(product.price) + " VND";
-    
+    const formattedPrice =
+      new Intl.NumberFormat("vi-VN").format(product.price) + " VND";
+
     let productText = `
 • ${product.name}
   • Thương hiệu: ${product.brand || "Không có thông tin"}
@@ -134,9 +135,11 @@ class ProductInfoAgent {
   • Ổ cứng: 
       - SSD: ${product.ssd || "Không có thông tin"} 
       - HDD: ${product.hdd || "Không có thông tin"}
-  • Màn hình: ${product.display_type ? product.display_inches + '"' : "Không có thông tin"}
+  • Màn hình: ${
+    product.display_type ? product.display_inches + '"' : "Không có thông tin"
+  }
   • Giá: ${formattedPrice}`;
-    
+
     // Only add the cart option if we have a userId
     if (userId) {
       productText += `\n\nBạn có muốn thêm sản phẩm này vào giỏ hàng không? (Vui lòng trả lời "có" hoặc "không")`;
@@ -151,7 +154,7 @@ class ProductInfoAgent {
       productName: product.name,
       price: product.price,
       waitingForCartConfirmation: userId ? true : false,
-      userId: userId
+      userId: userId,
     };
   }
 
@@ -164,17 +167,18 @@ class ProductInfoAgent {
       }
 
       const products = await this.searchProducts(productName);
-      
+
       // Check if the question is specifically asking about product details
-      const isDetailQuery = question.toLowerCase().includes("thông tin") || 
-                           question.toLowerCase().includes("chi tiết") ||
-                           question.toLowerCase().includes("cấu hình");
-      
+      const isDetailQuery =
+        question.toLowerCase().includes("thông tin") ||
+        question.toLowerCase().includes("chi tiết") ||
+        question.toLowerCase().includes("cấu hình");
+
       // If it's a general product query, return with cart option
       if (!isDetailQuery && products && products.length > 0) {
         return this.formatProductWithCartOption(products, userId);
       }
-      
+
       // Otherwise just return the formatted product info
       return this.formatProductInfo(products);
     } catch (error) {
