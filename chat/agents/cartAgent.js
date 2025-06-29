@@ -28,13 +28,26 @@ class CartAgent {
         };
       }
       
-      // Ensure quantity is a number
-      const qty = Number(quantity) || 1;
+      // Ensure parameters are numbers
+      const userIdInt = parseInt(userId);
+      const productIdInt = parseInt(productId);
+      const qty = parseInt(quantity) || 1;
+      
+      if (isNaN(userIdInt) || isNaN(productIdInt)) {
+        console.error(`Invalid userId (${userId}) or productId (${productId})`);
+        return {
+          success: false,
+          message: "Thông tin người dùng hoặc sản phẩm không hợp lệ.",
+          error: "Invalid userId or productId"
+        };
+      }
+      
+      console.log(`Adding product ${productIdInt} to cart for user ${userIdInt} with quantity ${qty}`);
       
       // Call the cart API to add the product
       const response = await axios.post(
-        `http://localhost:${process.env.PORT || 3001}/api/cart/${userId}/add`,
-        { productId, quantity: qty }
+        `http://localhost:${process.env.PORT || 3001}/api/cart/${userIdInt}/add`,
+        { productId: productIdInt, quantity: qty }
       );
       
       return {
