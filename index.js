@@ -364,63 +364,210 @@ app.get("/api/laptops/:id", async (req, res) => {
  *       500:
  *         description: Lỗi khi tạo đơn hàng
  */
+// app.post("/api/order", async (req, res) => {
+//   // const { customerId, promoCode, paymentMethod, shippingAddress } = req.body;
+//   const {
+//     promoCode,
+//     paymentMethod,
+//     shippingAddress,
+//     shippingMethod,
+//     shippingFee,
+//   } = req.body;
+
+//   const client = await pool.connect();
+//   try {
+//     await client.query("BEGIN"); // Bắt đầu giao dịch
+
+//     // 1. Lấy các sản phẩm từ giỏ hàng của khách hàng
+//     const cartItemsResult = await client.query(
+//       `SELECT c.product_id, l.name, c.quantity, l.price
+//        FROM cart_items c
+//        JOIN laptops l ON c.product_id = l.id
+//        WHERE c.customer_id = $1`,
+//       [customerId]
+//     );
+
+//     const cartItems = cartItemsResult.rows;
+
+//     if (cartItems.length === 0) {
+//       return res.status(400).json({ error: "Giỏ hàng trống!" });
+//     }
+
+//     // 2. Tính tổng giá trị giỏ hàng và áp dụng khuyến mãi nếu có
+//     let totalAmount = cartItems.reduce(
+//       (acc, item) => acc + item.price * item.quantity,
+//       0
+//     );
+//     let discountValue = 0;
+
+//     // Kiểm tra và áp dụng mã khuyến mãi
+//     if (promoCode) {
+//       const promoResult = await client.query(
+//         `SELECT * FROM promotions WHERE code = $1 AND start_date <= NOW() AND end_date >= NOW()`,
+//         [promoCode]
+//       );
+
+//       if (promoResult.rows.length > 0) {
+//         const promo = promoResult.rows[0];
+
+//         // Áp dụng khuyến mãi vào sản phẩm theo điều kiện
+//         for (let item of cartItems) {
+//           const conditionResult = await client.query(
+//             `SELECT * FROM promotion_conditions WHERE promotion_id = $1 AND field = 'brand' AND value = $2`,
+//             [promo.id, item.brand]
+//           );
+//           const processorResult = await client.query(
+//             `SELECT * FROM promotion_conditions WHERE promotion_id = $1 AND field = 'processor_brand' AND value = $2`,
+//             [promo.id, item.processor_brand]
+//           );
+
+//           if (
+//             conditionResult.rows.length > 0 ||
+//             processorResult.rows.length > 0
+//           ) {
+//             if (promo.discount_type === "percentage") {
+//               discountValue += (item.price * promo.discount_value) / 100;
+//             } else if (promo.discount_type === "fixed") {
+//               discountValue += promo.discount_value;
+//             }
+//           }
+//         }
+//       }
+//     }
+
+//     // 3. Tính toán giá trị cuối cùng sau khi áp dụng khuyến mãi
+//     const finalAmount = totalAmount - discountValue;
+
+//     // 4. Tạo đơn hàng
+//     const orderResult = await client.query(
+//       `INSERT INTO orders (customer_id, total_amount, order_status, payment_status)
+//       VALUES ($1, $2, 'pending', 'unpaid') RETURNING id`,
+//       [customerId, finalAmount]
+//     );
+//     const orderId = orderResult.rows[0].id;
+
+//     // 5. Chuyển giỏ hàng vào bảng order_details
+//     for (let item of cartItems) {
+//       const originalPrice = item.price;
+//       const discountPrice =
+//         item.price - (promoCode ? (item.price * discountValue) / 100 : 0);
+//       await client.query(
+//         `INSERT INTO order_details (order_id, product_id, product_name, quantity, price, total, original_price, discount_price, promotion_code)
+//         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+//         [
+//           orderId,
+//           item.product_id,
+//           item.name,
+//           item.quantity,
+//           originalPrice,
+//           item.quantity * discountPrice,
+//           originalPrice,
+//           discountPrice,
+//           promoCode,
+//         ]
+//       );
+//     }
+
+//     // 6. Lưu địa chỉ giao hàng
+//     if (shippingAddress) {
+//       await client.query(
+//         `INSERT INTO shipping_addresses (order_id, address, city, postal_code, country)
+//         VALUES ($1, $2, $3, $4, $5)`,
+//         [
+//           orderId,
+//           shippingAddress.address,
+//           shippingAddress.city,
+//           shippingAddress.postal_code,
+//           shippingAddress.country,
+//         ]
+//       );
+//     }
+
+//     // 7. Lưu phương thức thanh toán
+//     await client.query(
+//       `INSERT INTO payments (order_id, payment_method, payment_status)
+//       VALUES ($1, $2, 'unpaid')`,
+//       [orderId, paymentMethod]
+//     );
+
+//     // Cam kết giao dịch
+//     await client.query("COMMIT");
+//     res
+//       .status(200)
+//       .json({ message: "Đơn hàng đã được tạo thành công", orderId });
+//   } catch (err) {
+//     await client.query("ROLLBACK"); // Rollback nếu có lỗi
+//     console.error(err);
+//     res.status(500).json({ error: "Lỗi khi tạo đơn hàng" });
+//   } finally {
+//     client.release();
+//   }
+// });
 app.post("/api/order", async (req, res) => {
-  const { customerId, promoCode, paymentMethod, shippingAddress } = req.body;
+  const {
+    customerId,
+    promoCode,
+    paymentMethod,
+    shippingAddress,
+    shippingMethod,
+    shippingFee,
+  } = req.body;
 
   const client = await pool.connect();
   try {
-    await client.query("BEGIN"); // Bắt đầu giao dịch
+    await client.query("BEGIN");
 
-    // 1. Lấy các sản phẩm từ giỏ hàng của khách hàng
-    const cartItemsResult = await client.query(
-      `SELECT c.product_id, l.name, c.quantity, l.price 
+    // 1. Lấy giỏ hàng
+    const { rows: cartItems } = await client.query(
+      `SELECT c.product_id, l.name, c.quantity, l.price, l.brand, l.processor_brand 
        FROM cart_items c
        JOIN laptops l ON c.product_id = l.id
        WHERE c.customer_id = $1`,
       [customerId]
     );
 
-    const cartItems = cartItemsResult.rows;
-
     if (cartItems.length === 0) {
+      await client.query("ROLLBACK");
       return res.status(400).json({ error: "Giỏ hàng trống!" });
     }
 
-    // 2. Tính tổng giá trị giỏ hàng và áp dụng khuyến mãi nếu có
+    // 2. Tính tổng và khuyến mãi
     let totalAmount = cartItems.reduce(
       (acc, item) => acc + item.price * item.quantity,
       0
     );
     let discountValue = 0;
+    let promo = null;
 
-    // Kiểm tra và áp dụng mã khuyến mãi
     if (promoCode) {
-      const promoResult = await client.query(
-        `SELECT * FROM promotions WHERE code = $1 AND start_date <= NOW() AND end_date >= NOW()`,
+      const { rows } = await client.query(
+        `SELECT * FROM promotions 
+         WHERE code = $1 AND start_date <= NOW() AND end_date >= NOW()`,
         [promoCode]
       );
+      promo = rows[0];
 
-      if (promoResult.rows.length > 0) {
-        const promo = promoResult.rows[0];
-
-        // Áp dụng khuyến mãi vào sản phẩm theo điều kiện
+      if (promo) {
         for (let item of cartItems) {
-          const conditionResult = await client.query(
-            `SELECT * FROM promotion_conditions WHERE promotion_id = $1 AND field = 'brand' AND value = $2`,
+          const { rows: brandCond } = await client.query(
+            `SELECT * FROM promotion_conditions 
+             WHERE promotion_id = $1 AND field = 'brand' AND value = $2`,
             [promo.id, item.brand]
           );
-          const processorResult = await client.query(
-            `SELECT * FROM promotion_conditions WHERE promotion_id = $1 AND field = 'processor_brand' AND value = $2`,
+          const { rows: cpuCond } = await client.query(
+            `SELECT * FROM promotion_conditions 
+             WHERE promotion_id = $1 AND field = 'processor_brand' AND value = $2`,
             [promo.id, item.processor_brand]
           );
 
-          if (
-            conditionResult.rows.length > 0 ||
-            processorResult.rows.length > 0
-          ) {
+          const matched = brandCond.length > 0 || cpuCond.length > 0;
+
+          if (matched) {
             if (promo.discount_type === "percentage") {
-              discountValue += (item.price * promo.discount_value) / 100;
+              discountValue +=
+                (item.price * item.quantity * promo.discount_value) / 100;
             } else if (promo.discount_type === "fixed") {
+              // phân bổ khuyến mãi cố định đều cho sản phẩm hợp lệ
               discountValue += promo.discount_value;
             }
           }
@@ -428,44 +575,73 @@ app.post("/api/order", async (req, res) => {
       }
     }
 
-    // 3. Tính toán giá trị cuối cùng sau khi áp dụng khuyến mãi
-    const finalAmount = totalAmount - discountValue;
+    // 3. Tính tổng cuối cùng
+    const finalAmount =
+      Math.max(totalAmount - discountValue, 0) + (shippingFee || 0);
 
     // 4. Tạo đơn hàng
-    const orderResult = await client.query(
+    const {
+      rows: [order],
+    } = await client.query(
       `INSERT INTO orders (customer_id, total_amount, order_status, payment_status)
-      VALUES ($1, $2, 'pending', 'unpaid') RETURNING id`,
+       VALUES ($1, $2, 'pending', 'unpaid') RETURNING id`,
       [customerId, finalAmount]
     );
-    const orderId = orderResult.rows[0].id;
+    const orderId = order.id;
 
-    // 5. Chuyển giỏ hàng vào bảng order_details
+    // 5. Lưu chi tiết đơn hàng
     for (let item of cartItems) {
-      const originalPrice = item.price;
-      const discountPrice =
-        item.price - (promoCode ? (item.price * discountValue) / 100 : 0);
+      let appliedPrice = item.price;
+
+      if (promo) {
+        const { rows: matched } = await client.query(
+          `SELECT 1 FROM promotion_conditions
+           WHERE promotion_id = $1 AND 
+           ((field = 'brand' AND value = $2) OR 
+            (field = 'processor_brand' AND value = $3))`,
+          [promo.id, item.brand, item.processor_brand]
+        );
+
+        const isMatched = matched.length > 0;
+
+        if (isMatched) {
+          if (promo.discount_type === "percentage") {
+            appliedPrice = item.price * (1 - promo.discount_value / 100);
+          } else if (promo.discount_type === "fixed") {
+            // phân bổ khuyến mãi cho mỗi sản phẩm
+            const eligibleCount = cartItems.length;
+            appliedPrice = item.price - promo.discount_value / eligibleCount;
+          }
+        }
+      }
+
+      const totalLine = appliedPrice * item.quantity;
+      const discountLine = item.price * item.quantity - totalLine;
+
       await client.query(
-        `INSERT INTO order_details (order_id, product_id, product_name, quantity, price, total, original_price, discount_price, promotion_code)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        `INSERT INTO order_details
+         (order_id, product_id, product_name, quantity, price, total, original_price, discount_price, promotion_code)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
         [
           orderId,
           item.product_id,
           item.name,
           item.quantity,
-          originalPrice,
-          item.quantity * discountPrice,
-          originalPrice,
-          discountPrice,
-          promoCode,
+          appliedPrice,
+          totalLine,
+          item.price,
+          discountLine,
+          promoCode || null,
         ]
       );
     }
 
-    // 6. Lưu địa chỉ giao hàng
+    // 6. Địa chỉ giao hàng
     if (shippingAddress) {
       await client.query(
-        `INSERT INTO shipping_addresses (order_id, address, city, postal_code, country)
-        VALUES ($1, $2, $3, $4, $5)`,
+        `INSERT INTO shipping_addresses
+         (order_id, address, city, postal_code, country)
+         VALUES ($1, $2, $3, $4, $5)`,
         [
           orderId,
           shippingAddress.address,
@@ -476,21 +652,39 @@ app.post("/api/order", async (req, res) => {
       );
     }
 
-    // 7. Lưu phương thức thanh toán
+    // 7. Phương thức thanh toán
     await client.query(
       `INSERT INTO payments (order_id, payment_method, payment_status)
-      VALUES ($1, $2, 'unpaid')`,
+       VALUES ($1, $2, 'unpaid')`,
       [orderId, paymentMethod]
     );
 
-    // Cam kết giao dịch
+    // 8. Ghi lại shipping method nếu cần
+    if (shippingMethod) {
+      await client.query(
+        `INSERT INTO shipping_methods (order_id, method, fee)
+         VALUES ($1, $2, $3)`,
+        [orderId, shippingMethod, shippingFee || 0]
+      );
+    }
+
+    // 9. Xóa giỏ hàng
+    await client.query(`DELETE FROM cart_items WHERE customer_id = $1`, [
+      customerId,
+    ]);
+
     await client.query("COMMIT");
-    res
-      .status(200)
-      .json({ message: "Đơn hàng đã được tạo thành công", orderId });
+    res.json({
+      message: "Đơn hàng đã được tạo thành công",
+      orderId,
+      total: totalAmount,
+      discount: discountValue,
+      shippingFee: shippingFee || 0,
+      finalAmount,
+    });
   } catch (err) {
-    await client.query("ROLLBACK"); // Rollback nếu có lỗi
-    console.error(err);
+    await client.query("ROLLBACK");
+    console.error("Checkout error:", err);
     res.status(500).json({ error: "Lỗi khi tạo đơn hàng" });
   } finally {
     client.release();
@@ -607,25 +801,62 @@ app.post("/api/order", async (req, res) => {
 // GET /api/promotions/available
 /**
  * @swagger
- * /promotions/available:
+ * /api/promotions/available:
  *   get:
- *     summary: Lấy danh sách mã khuyến mãi đang hoạt động
+ *     summary: Lấy danh sách mã khuyến mãi đang hoạt động kèm điều kiện
  *     tags: [Promotions]
  *     responses:
  *       200:
- *         description: Danh sách khuyến mãi
+ *         description: Danh sách khuyến mãi đang hoạt động
  */
 app.get("/api/promotions/available", async (req, res) => {
   try {
-    const { rows } = await pool.query(
-      `SELECT id, code, description, discount_type, discount_value
+    // Lấy danh sách khuyến mãi còn hiệu lực
+    const { rows: promotions } = await pool.query(
+      `SELECT id, code, description, discount_type, discount_value,
+              TO_CHAR(start_date, 'YYYY-MM-DD') as start_date,
+              TO_CHAR(end_date, 'YYYY-MM-DD') as end_date
        FROM promotions
        WHERE start_date <= NOW() AND end_date >= NOW()`
     );
-    res.json(rows);
+
+    // Nếu không có khuyến mãi nào
+    if (promotions.length === 0) return res.json([]);
+
+    // Lấy ID của tất cả promotions
+    const promoIds = promotions.map((p) => p.id);
+
+    // Truy vấn điều kiện áp dụng
+    const { rows: conditions } = await pool.query(
+      `SELECT promotion_id, field, value, condition_type
+       FROM promotion_conditions
+       WHERE promotion_id = ANY($1::int[])`,
+      [promoIds]
+    );
+
+    // Gộp điều kiện theo promotion_id
+    const conditionMap = {};
+    for (const cond of conditions) {
+      if (!conditionMap[cond.promotion_id]) {
+        conditionMap[cond.promotion_id] = [];
+      }
+      conditionMap[cond.promotion_id].push({
+        field: cond.field,
+        value: cond.value,
+        condition_type: cond.condition_type,
+      });
+    }
+
+    // Trả về promotions kèm theo conditions
+    const result = promotions.map((promo) => ({
+      ...promo,
+      conditions: conditionMap[promo.id] || [],
+    }));
+
+    res.json(result);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Không lấy được mã khuyến mãi" });
+    console.error("Lỗi khi lấy danh sách khuyến mãi:", err);
+    res.status(500).json({ error: "Không thể lấy danh sách khuyến mãi" });
   }
 });
 
