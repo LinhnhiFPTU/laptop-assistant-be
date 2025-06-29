@@ -89,30 +89,39 @@ class ProductInfoAgent {
     if (!products || products.length === 0) {
       return "Không tìm thấy thông tin về sản phẩm này.";
     }
-
     return products
       .map((product) => {
         const formattedPrice =
           new Intl.NumberFormat("vi-VN").format(product.price) + " VND";
 
-        return `
-• ${product.name}
-  • Thương hiệu: ${product.brand || "Không có thông tin"}
-  • CPU: ${product.processor_name || "Không có thông tin"}
-  • Chip: ${product.processor_brand || "Không có thông tin"}
-  • RAM: ${product.ram ? product.ram : "Không có thông tin"}
-  • Ổ cứng: 
-      - SSD: ${product.ssd || "Không có thông tin"} 
-      - HDD: ${product.hdd || "Không có thông tin"}
-  • Màn hình: ${
-    product.display_type ? product.display_inches + '"' : "Không có thông tin"
-  }
-  • Giá: ${formattedPrice}
-      `.trim();
+        const lines = [`• ${product.name}`];
+
+        if (product.brand) lines.push(`  • Thương hiệu: ${product.brand}`);
+
+        if (product.processor_name)
+          lines.push(`  • CPU: ${product.processor_name}`);
+        if (product.processor_brand)
+          lines.push(`  • Chip: ${product.processor_brand}`);
+        if (product.ram) lines.push(`  • RAM: ${product.ram}`);
+
+        if (product.ssd || product.hdd) {
+          lines.push("  • Ổ cứng:");
+          if (product.ssd) lines.push(`      - SSD: ${product.ssd}`);
+          if (product.hdd) lines.push(`      - HDD: ${product.hdd}`);
+        }
+
+        if (product.display_type && product.display_inches) {
+          lines.push(
+            `  • Màn hình: ${product.display_inches}" ${product.display_type}`
+          );
+        }
+
+        lines.push(`  • Giá: ${formattedPrice}`);
+
+        return lines.join("\n");
       })
       .join("\n\n");
   }
-
   static formatProductWithCartOption(products, userId) {
     if (!products || products.length === 0) {
       return {
@@ -121,39 +130,49 @@ class ProductInfoAgent {
       };
     }
 
-    // Format the first product with add to cart option
     const product = products[0];
     const formattedPrice =
       new Intl.NumberFormat("vi-VN").format(product.price) + " VND";
 
-    let productText = `
-• ${product.name}
-  • Thương hiệu: ${product.brand || "Không có thông tin"}
-  • CPU: ${product.processor_name || "Không có thông tin"}
-  • Chip: ${product.processor_brand || "Không có thông tin"}
-  • RAM: ${product.ram ? product.ram : "Không có thông tin"}
-  • Ổ cứng: 
-      - SSD: ${product.ssd || "Không có thông tin"} 
-      - HDD: ${product.hdd || "Không có thông tin"}
-  • Màn hình: ${
-    product.display_type ? product.display_inches + '"' : "Không có thông tin"
-  }
-  • Giá: ${formattedPrice}`;
+    const lines = [`• ${product.name}`];
 
-    // Only add the cart option if we have a userId
+    if (product.brand) lines.push(`  • Thương hiệu: ${product.brand}`);
+    if (product.processor_name)
+      lines.push(`  • CPU: ${product.processor_name}`);
+    if (product.processor_brand)
+      lines.push(`  • Chip: ${product.processor_brand}`);
+    if (product.ram) lines.push(`  • RAM: ${product.ram}`);
+
+    if (product.ssd || product.hdd) {
+      lines.push(`  • Ổ cứng:`);
+      if (product.ssd) lines.push(`      - SSD: ${product.ssd}`);
+      if (product.hdd) lines.push(`      - HDD: ${product.hdd}`);
+    }
+
+    if (product.display_type && product.display_inches) {
+      lines.push(
+        `  • Màn hình: ${product.display_inches}" ${product.display_type}`
+      );
+    }
+
+    lines.push(`  • Giá: ${formattedPrice}`);
+
+    // Thêm gợi ý thêm vào giỏ
     if (userId) {
-      productText += `\n\nBạn có muốn thêm sản phẩm này vào giỏ hàng không? (Vui lòng trả lời "có" hoặc "không")`;
+      lines.push(
+        `\nBạn có muốn thêm sản phẩm này vào giỏ hàng không? (Vui lòng trả lời "có" hoặc "không")`
+      );
     } else {
-      productText += `\n\nBạn cần đăng nhập để thêm sản phẩm vào giỏ hàng.`;
+      lines.push(`\nBạn cần đăng nhập để thêm sản phẩm vào giỏ hàng.`);
     }
 
     return {
-      text: productText,
+      text: lines.join("\n"),
       isProductDisplay: true,
       productId: product.id,
       productName: product.name,
       price: product.price,
-      waitingForCartConfirmation: userId ? true : false,
+      waitingForCartConfirmation: !!userId,
       userId: userId,
     };
   }
