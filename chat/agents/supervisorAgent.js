@@ -373,7 +373,7 @@ class SupervisorAgent {
       // Use Neo4jAgent for complex product queries
       if (analysis.needsNeo4jQuery) {
         promises.push(
-          Neo4jAgent.getProductContext(question)
+          Neo4jAgent.getProductContext(question, userId)
             .then((data) =>
               agentResults.push({ agentName: "Neo4jAgent", data })
             )
